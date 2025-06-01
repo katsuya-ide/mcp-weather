@@ -2,14 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const NWS_API_BASE = "https://api.weather.gov";
+const WEATHER_API_BASE = "https://weather.tsukumijima.net/api/forecast";
 const USER_AGENT = "weather-app/1.0";
 
-// Helper function for making NWS API requests
-async function makeNWSRequest<T>(url: string): Promise<T | null> {
+// Helper function for making weather API requests
+async function makeWeatherRequest<T>(url: string): Promise<T | null> {
   const headers = {
     "User-Agent": USER_AGENT,
-    Accept: "application/geo+json",
+    Accept: "application/json",
   };
 
   try {
@@ -19,59 +19,49 @@ async function makeNWSRequest<T>(url: string): Promise<T | null> {
     }
     return (await response.json()) as T;
   } catch (error) {
-    console.error("Error making NWS request:", error);
+    console.error("Error making weather request:", error);
     return null;
   }
 }
 
-interface AlertFeature {
-  properties: {
-    event?: string;
-    areaDesc?: string;
-    severity?: string;
-    status?: string;
-    headline?: string;
-  };
+interface WeatherDetail {
+  weather?: string;
+  wind?: string;
+  wave?: string;
 }
 
-/*
-// Format alert data
-function formatAlert(feature: AlertFeature): string {
-  const props = feature.properties;
-  return [
-    `Event: ${props.event || "Unknown"}`,
-    `Area: ${props.areaDesc || "Unknown"}`,
-    `Severity: ${props.severity || "Unknown"}`,
-    `Status: ${props.status || "Unknown"}`,
-    `Headline: ${props.headline || "No headline"}`,
-    "---",
-  ].join("\n");
+interface Temperature {
+  celsius?: string;
+  max?: {
+    celsius?: string;
+  };
+  min?: {
+    celsius?: string;
+  };
 }
-*/
 
 interface ForecastPeriod {
-  name?: string;
-  temperature?: number;
-  temperatureUnit?: string;
-  windSpeed?: string;
-  windDirection?: string;
-  shortForecast?: string;
+  dateLabel?: string;
+  telop?: string;
+  detail?: WeatherDetail;
+  temperature?: Temperature;
 }
 
-interface AlertsResponse {
-  features: AlertFeature[];
+interface WeatherDescription {
+  publicTime?: string;
+  publicTimeFormatted?: string;
+  headlineText?: string;
+  bodyText?: string;
+  text?: string;
 }
 
-interface PointsResponse {
-  properties: {
-    forecast?: string;
-  };
-}
-
-interface ForecastResponse {
-  properties: {
-    periods: ForecastPeriod[];
-  };
+interface WeatherResponse {
+  publicTime?: string;
+  publicTimeFormatted?: string;
+  title?: string;
+  link?: string;
+  description?: WeatherDescription;
+  forecasts?: ForecastPeriod[];
 }
 
 // Create server instance
@@ -81,132 +71,93 @@ const server = new McpServer({
 });
 
 // Register weather tools
-/* 
-server.tool(
-  "get-alerts",
-  "Get weather alerts for a state",
-  {
-    state: z.string().length(2).describe("Two-letter state code (e.g. CA, NY)"),
-  },
-  async ({ state }) => {
-    const stateCode = state.toUpperCase();
-    const alertsUrl = `${NWS_API_BASE}/alerts?area=${stateCode}`;
-    const alertsData = await makeNWSRequest<AlertsResponse>(alertsUrl);
-
-    if (!alertsData) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Failed to retrieve alerts data",
-          },
-        ],
-      };
-    }
-
-    const features = alertsData.features || [];
-    if (features.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `No active alerts for ${stateCode}`,
-          },
-        ],
-      };
-    }
-
-    const formattedAlerts = features.map(formatAlert);
-    const alertsText = `Active alerts for ${stateCode}:\n\n${formattedAlerts.join("\n")}`;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: alertsText,
-        },
-      ],
-    };
-  },
-);
-*/
-
 server.tool(
   "get-forecast",
-  "Get weather forecast for a location",
+  "Get weather forecast for a location using region ID",
   {
-    latitude: z.number().min(-90).max(90).describe("Latitude of the location"),
-    longitude: z
-      .number()
-      .min(-180)
-      .max(180)
-      .describe("Longitude of the location"),
+    regionId: z.string().describe("Region ID for the location (e.g., 400040 for Kurume, Fukuoka)"),
   },
-  async ({ latitude, longitude }) => {
-    // Get grid point data
-    const pointsUrl = `${NWS_API_BASE}/points/${latitude.toFixed(4)},${longitude.toFixed(4)}`;
-    const pointsData = await makeNWSRequest<PointsResponse>(pointsUrl);
+  async ({ regionId }) => {
+    // Construct the API URL with region ID
+    const weatherUrl = `${WEATHER_API_BASE}?city=${regionId}`;
+    const weatherData = await makeWeatherRequest<WeatherResponse>(weatherUrl);
 
-    if (!pointsData) {
+    if (!weatherData) {
       return {
         content: [
           {
             type: "text",
-            text: `Failed to retrieve grid point data for coordinates: ${latitude}, ${longitude}. This location may not be supported by the NWS API (only US locations are supported).`,
+            text: `Failed to retrieve weather data for region ID: ${regionId}. Please check if the region ID is valid.`,
           },
         ],
       };
     }
 
-    const forecastUrl = pointsData.properties?.forecast;
-    if (!forecastUrl) {
+    const forecasts = weatherData.forecasts || [];
+    if (forecasts.length === 0) {
       return {
         content: [
           {
             type: "text",
-            text: "Failed to get forecast URL from grid point data",
-          },
-        ],
-      };
-    }
-
-    // Get forecast data
-    const forecastData = await makeNWSRequest<ForecastResponse>(forecastUrl);
-    if (!forecastData) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Failed to retrieve forecast data",
-          },
-        ],
-      };
-    }
-
-    const periods = forecastData.properties?.periods || [];
-    if (periods.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "No forecast periods available",
+            text: "No forecast data available for this region.",
           },
         ],
       };
     }
 
     // Format forecast periods
-    const formattedForecast = periods.map((period: ForecastPeriod) =>
-      [
-        `${period.name || "Unknown"}:`,
-        `Temperature: ${period.temperature || "Unknown"}°${period.temperatureUnit || "F"}`,
-        `Wind: ${period.windSpeed || "Unknown"} ${period.windDirection || ""}`,
-        `${period.shortForecast || "No forecast available"}`,
-        "---",
-      ].join("\n"),
-    );
+    const formattedForecast = forecasts.map((forecast: ForecastPeriod) => {
+      const parts = [
+        `${forecast.dateLabel || "Unknown"}:`,
+        `天気: ${forecast.telop || "不明"}`,
+      ];
 
-    const forecastText = `Forecast for ${latitude}, ${longitude}:\n\n${formattedForecast.join("\n")}`;
+      // Add temperature information
+      if (forecast.temperature) {
+        const temp = forecast.temperature;
+        if (temp.max?.celsius) {
+          parts.push(`最高気温: ${temp.max.celsius}℃`);
+        }
+        if (temp.min?.celsius) {
+          parts.push(`最低気温: ${temp.min.celsius}℃`);
+        }
+      }
+
+      // Add detailed weather information
+      if (forecast.detail) {
+        if (forecast.detail.weather) {
+          parts.push(`詳細: ${forecast.detail.weather}`);
+        }
+        if (forecast.detail.wind) {
+          parts.push(`風: ${forecast.detail.wind}`);
+        }
+        if (forecast.detail.wave) {
+          parts.push(`波: ${forecast.detail.wave}`);
+        }
+      }
+
+      parts.push("---");
+      return parts.join("\n");
+    });
+
+    // Create the response text
+    const title = weatherData.title || `地域ID ${regionId} の天気予報`;
+    const publicTime = weatherData.publicTimeFormatted || weatherData.publicTime || "";
+    const description = weatherData.description?.text || "";
+    
+    let forecastText = `${title}\n`;
+    if (publicTime) {
+      forecastText += `発表時刻: ${publicTime}\n`;
+    }
+    if (description) {
+      forecastText += `\n概況:\n${description}\n`;
+    }
+    forecastText += `\n予報:\n${formattedForecast.join("\n")}`;
+
+    // Add link to JMA if available
+    if (weatherData.link) {
+      forecastText += `\n詳細情報: ${weatherData.link}`;
+    }
 
     return {
       content: [
