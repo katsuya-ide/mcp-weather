@@ -1,0 +1,38 @@
+{
+  "name": "mcp-weather",
+  "version": "1.0.0",
+  "main": "index.js",
+  "description": "See the [Quickstart](https://modelcontextprotocol.io/quickstart) tutorial for more information.",
+  "type": "module",
+  "bin": {
+    "weather": "./build/index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\""
+  },
+  "files": [
+    "build"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/katsuya-ide/mcp-weather.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/katsuya-ide/mcp-weather/issues"
+  },
+  "homepage": "https://github.com/katsuya-ide/mcp-weather#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "dotenv": "^16.4.7",
+    "zod": "^3.25.45"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "typescript": "^5.8.3"
+  }
+}
