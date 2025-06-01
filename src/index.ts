@@ -34,6 +34,7 @@ interface AlertFeature {
   };
 }
 
+/*
 // Format alert data
 function formatAlert(feature: AlertFeature): string {
   const props = feature.properties;
@@ -46,6 +47,7 @@ function formatAlert(feature: AlertFeature): string {
     "---",
   ].join("\n");
 }
+*/
 
 interface ForecastPeriod {
   name?: string;
@@ -79,6 +81,7 @@ const server = new McpServer({
 });
 
 // Register weather tools
+/* 
 server.tool(
   "get-alerts",
   "Get weather alerts for a state",
@@ -126,6 +129,7 @@ server.tool(
     };
   },
 );
+*/
 
 server.tool(
   "get-forecast",
